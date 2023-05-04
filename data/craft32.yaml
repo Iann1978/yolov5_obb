@@ -1,0 +1,11 @@
+path: /datasets/aircraft32
+train: images/train
+val: images/val
+
+# number of classes
+nc: 1
+
+# class names
+names: ['aircraft']
+
+download: False

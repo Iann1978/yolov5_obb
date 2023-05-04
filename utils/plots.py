@@ -114,6 +114,70 @@ class Annotator:
                             txt_color,
                             thickness=tf,
                             lineType=cv2.LINE_AA)
+                
+    # draw an obb((cx,cy), (w,h), angle) on image using ImageDraw
+    def draw_obb(self, obb, color=(128, 128, 128)):
+
+        # Extract the parameters of the oriented bounding box
+        cx, cy, w, h, theta = obb
+
+        bbox = cv2.boxPoints(((cx, cy), (w, h), theta)).astype(np.int32)
+
+
+
+        corners = [
+            (bbox[0][0], bbox[0][1]),
+            (bbox[1][0], bbox[1][1]),
+            (bbox[2][0], bbox[2][1]),
+            (bbox[3][0], bbox[3][1]),
+        ]
+        # Compute the coordinates of the four corners of the bounding box
+        # corners = [
+        #     (cx + math.cos(theta) * w / 2 + math.sin(theta) * h / 2,
+        #      cy + math.sin(theta) * w / 2 - math.cos(theta) * h / 2),
+        #     (cx + math.cos(theta) * w / 2 - math.sin(theta) * h / 2,
+        #      cy + math.sin(theta) * w / 2 + math.cos(theta) * h / 2),
+        #     (cx - math.cos(theta) * w / 2 - math.sin(theta) * h / 2,
+        #      cy - math.sin(theta) * w / 2 + math.cos(theta) * h / 2),
+        #     (cx - math.cos(theta) * w / 2 + math.sin(theta) * h / 2,
+        #      cy - math.sin(theta) * w / 2 - math.cos(theta) * h / 2)
+        # ]
+
+        # Draw the bounding box on the image
+        self.draw.polygon(corners, outline=color)
+
+
+    def obb_label(self, box, angle, label='', color=(128, 128, 128), txt_color=(255, 255, 255)):
+        # Add one xyxy box to image with label
+        if self.pil or not is_ascii(label):
+            self.draw.rectangle(box, width=self.lw, outline=color)  # box
+            if label:
+                w, h = self.font.getsize(label)  # text width, height (WARNING: deprecated) in 9.2.0
+                # _, _, w, h = self.font.getbbox(label)  # text width, height (New)
+                outside = box[1] - h >= 0  # label fits outside box
+                self.draw.rectangle(
+                    (box[0], box[1] - h if outside else box[1], box[0] + w + 1,
+                        box[1] + 1 if outside else box[1] + h + 1),
+                    fill=color,
+                )
+                # self.draw.text((box[0], box[1]), label, fill=txt_color, font=self.font, anchor='ls')  # for PIL>8.0
+                self.draw.text((box[0], box[1] - h if outside else box[1]), label, fill=txt_color, font=self.font)
+        else:  # cv2
+            p1, p2 = (int(box[0]), int(box[1])), (int(box[2]), int(box[3]))
+            cv2.rectangle(self.im, p1, p2, color, thickness=self.lw, lineType=cv2.LINE_AA)
+            if label:
+                tf = max(self.lw - 1, 1)  # font thickness
+                w, h = cv2.getTextSize(label, 0, fontScale=self.lw / 3, thickness=tf)[0]  # text width, height
+                outside = p1[1] - h >= 3
+                p2 = p1[0] + w, p1[1] - h - 3 if outside else p1[1] + h + 3
+                cv2.rectangle(self.im, p1, p2, color, -1, cv2.LINE_AA)  # filled
+                cv2.putText(self.im,
+                            label, (p1[0], p1[1] - 2 if outside else p1[1] + h + 2),
+                            0,
+                            self.lw / 3,
+                            txt_color,
+                            thickness=tf,
+                            lineType=cv2.LINE_AA)
 
     def masks(self, masks, colors, im_gpu, alpha=0.5, retina_masks=False):
         """Plot masks at once.
@@ -226,7 +290,7 @@ def output_to_target(output, max_det=300):
     return torch.cat(targets, 0).numpy()
 
 
-@threaded
+# @threaded
 def plot_images(images, targets, paths=None, fname='images.jpg', names=None):
     # Plot image grid with labels
     if isinstance(images, torch.Tensor):
@@ -268,26 +332,27 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None):
             annotator.text((x + 5, y + 5), text=Path(paths[i]).name[:40], txt_color=(220, 220, 220))  # filenames
         if len(targets) > 0:
             ti = targets[targets[:, 0] == i]  # image targets
-            boxes = xywh2xyxy(ti[:, 2:6]).T
+            boxes = ti[:, 2:7].T # xywha
             classes = ti[:, 1].astype('int')
-            labels = ti.shape[1] == 6  # labels if no conf column
-            conf = None if labels else ti[:, 6]  # check for confidence presence (label vs pred)
+            labels = ti.shape[1] == 7  # labels if no conf column
+            conf = None if labels else ti[:, 7]  # check for confidence presence (label vs pred)
 
             if boxes.shape[1]:
-                if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
+                if boxes[:4].max() <= 1.01:  # if normalized with tolerance 0.01
                     boxes[[0, 2]] *= w  # scale to pixels
                     boxes[[1, 3]] *= h
                 elif scale < 1:  # absolute coords need scale if image scales
-                    boxes *= scale
-            boxes[[0, 2]] += x
-            boxes[[1, 3]] += y
+                    boxes[[0,1,2,3]] *= scale
+            boxes[[0]] += x
+            boxes[[1]] += y
             for j, box in enumerate(boxes.T.tolist()):
                 cls = classes[j]
                 color = colors(cls)
                 cls = names[cls] if names else cls
                 if labels or conf[j] > 0.25:  # 0.25 conf thresh
                     label = f'{cls}' if labels else f'{cls} {conf[j]:.1f}'
-                    annotator.box_label(box, label, color=color)
+                    # annotator.box_label(box, label, color=color)
+                    annotator.draw_obb(box, color=color)
     annotator.im.save(fname)  # save
 
 

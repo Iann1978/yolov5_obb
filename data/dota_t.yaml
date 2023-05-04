@@ -1,0 +1,12 @@
+path: yolodata
+train: images/train
+val: images/val
+
+# number of classes
+nc: 13
+
+# class names
+names:  ['plane', 'baseball-diamond', 'bridge', 'ground-track-field', 'small-vehicle', 'large-vehicle', 'ship', 'tennis-court',
+                'basketball-court', 'storage-tank',  'soccer-ball-field', 'roundabout', 'harbor', 'swimming-pool', 'helicopter', 'container-crane']
+
+download: False
