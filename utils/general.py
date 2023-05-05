@@ -587,6 +587,7 @@ def check_dataset(data, autodownload=True):
 
 
 def check_amp(model):
+    return False
     # Check PyTorch Automatic Mixed Precision (AMP) functionality. Return True on correct operation
     from models.common import AutoShape, DetectMultiBackend
 
